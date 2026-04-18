@@ -1,0 +1,123 @@
+"""
+数据库初始化模块
+部署时自动执行 alembic 迁移 + 创建管理员用户（auth 模块）
+"""
+
+import asyncio
+import subprocess
+from loguru import logger
+
+from app.core.config import settings
+
+
+async def run_alembic_upgrade() -> bool:
+    """
+    执行 alembic 数据库迁移。
+
+    为什么要在这里执行：
+    - 容器启动时自动确保数据库 schema 是最新的，无需手动进入容器执行。
+    - 使用 subprocess 而非 alembic API，避免在异步上下文中混合使用同步数据库连接。
+    """
+    try:
+        result = subprocess.run(
+            ["alembic", "upgrade", "head"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        if result.returncode == 0:
+            logger.info("Alembic 迁移执行成功")
+            return True
+        else:
+            logger.error(f"Alembic 迁移失败: {result.stderr}")
+            return False
+
+    except subprocess.TimeoutExpired:
+        logger.error("Alembic 迁移超时")
+        return False
+    except Exception as e:
+        logger.error(f"Alembic 迁移异常: {e}")
+        return False
+
+
+{% if 'auth' in features %}
+async def create_admin_user() -> bool:
+    """
+    创建初始管理员用户（auth 模块独占）。
+
+    使用同步数据库连接（Celery 和初始化操作都用同步连接，
+    避免异步上下文中的嵌套事件循环问题）。
+    """
+    try:
+        from sqlmodel import select
+
+        from app.features.auth.models import User
+        from app.features.auth.dependencies import PasswordManager
+        from app.core.postgresql import get_sync_db
+
+        sync_db = get_sync_db()
+        password_manager = PasswordManager()
+
+        try:
+            result = sync_db.execute(
+                select(User).where(User.email == settings.admin_email)
+            )
+            existing_admin = result.scalar_one_or_none()
+
+            if existing_admin:
+                logger.info(f"管理员用户已存在: {settings.admin_email}")
+                return True
+
+            hashed_password = password_manager.hash_password(settings.admin_password)
+            admin_user = User(
+                email=settings.admin_email,
+                username="admin",
+                hashed_password=hashed_password,
+                is_active=True,
+                is_admin=True,
+                email_verified=True,
+            )
+            sync_db.add(admin_user)
+            sync_db.commit()
+            sync_db.refresh(admin_user)
+            logger.info(f"管理员用户创建成功: {admin_user.email}")
+            return True
+
+        except Exception as e:
+            sync_db.rollback()
+            logger.error(f"创建管理员用户失败: {e}")
+            return False
+        finally:
+            sync_db.close()
+
+    except Exception as e:
+        logger.error(f"创建管理员用户异常: {e}")
+        return False
+{% endif %}
+
+
+async def initialize_database():
+    """
+    初始化数据库：执行迁移 + 创建管理员用户。
+    """
+    logger.info("开始数据库初始化...")
+
+    # 执行 alembic 迁移
+    logger.info("执行 alembic 迁移...")
+    if not await run_alembic_upgrade():
+        logger.error("Alembic 迁移失败")
+        return False
+
+{% if 'auth' in features %}
+    # 创建管理员用户
+    try:
+        logger.info("创建管理员用户...")
+        if not await create_admin_user():
+            logger.warning("管理员用户创建失败，但继续启动")
+    except Exception as e:
+        logger.error(f"管理员用户创建异常: {e}")
+{% endif %}
+
+    logger.info("数据库初始化完成")
+    return True

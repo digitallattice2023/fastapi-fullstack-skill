@@ -1,0 +1,139 @@
+"""
+健康检查服务模块
+通过 Feature Manifest 自动注册检查项
+"""
+
+import asyncio
+import subprocess
+from typing import Dict, Any, Callable, Awaitable
+from sqlalchemy import text
+from loguru import logger
+
+from app.core.config import settings
+from app.core.postgresql import get_db
+from app.shared.models import BaseResponse
+
+# 动态健康检查注册表
+_health_checks: Dict[str, Callable[[], Awaitable[Dict[str, Any]]]] = {}
+
+
+def register_health_check(name: str, check_func: Callable[[], Awaitable[Dict[str, Any]]]) -> None:
+    """注册自定义健康检查项"""
+    _health_checks[name] = check_func
+    logger.info(f"已注册健康检查项: {name}")
+
+
+class HealthCheckService:
+    """健康检查服务"""
+
+    async def check_postgresql(self) -> Dict[str, Any]:
+        """检查PostgreSQL连接"""
+        try:
+            async for session in get_db():
+                result = await session.execute(text("SELECT version()"))
+                version_info = result.fetchone()
+                if version_info:
+                    return {
+                        "status": "healthy",
+                        "message": "PostgreSQL connection successful",
+                    }
+        except Exception as e:
+            logger.error(f"PostgreSQL连接失败: {e}")
+            return {"status": "unhealthy", "message": f"PostgreSQL connection failed: {e}"}
+
+{% if 'redis' in features %}
+    async def check_redis(self) -> Dict[str, Any]:
+        """检查Redis连接"""
+        try:
+            from app.core.redis import get_redis
+            redis_client = get_redis()
+            pong = await redis_client.ping()
+            if pong:
+                return {"status": "healthy", "message": "Redis connection successful"}
+        except Exception as e:
+            logger.error(f"Redis连接失败: {e}")
+            return {"status": "unhealthy", "message": f"Redis connection failed: {e}"}
+{% endif %}
+
+    async def perform_health_check(self) -> BaseResponse[Dict[str, Any]]:
+        """执行完整的健康检查（包含动态注册项）"""
+        logger.info("开始综合健康检查...")
+
+        # 基础检查
+        base_checks = [self.check_postgresql()]
+        base_names = ["postgresql"]
+{% if 'redis' in features %}
+        base_checks.append(self.check_redis())
+        base_names.append("redis")
+{% endif %}
+
+        # 动态检查
+        dynamic_checks = []
+        dynamic_names = []
+        for name, check_func in _health_checks.items():
+            dynamic_checks.append(check_func())
+            dynamic_names.append(name)
+
+        all_coros = base_checks + dynamic_checks
+        checks = await asyncio.gather(*all_coros, return_exceptions=True)
+
+        health_status = {}
+        for i, name in enumerate(base_names):
+            result = checks[i]
+            health_status[name] = result if not isinstance(result, Exception) else {"status": "error", "message": str(result)}
+
+        for i, name in enumerate(dynamic_names):
+            result = checks[len(base_names) + i]
+            health_status[name] = result if not isinstance(result, Exception) else {"status": "error", "message": str(result)}
+
+        all_healthy = all(check.get("status") == "healthy" for check in health_status.values())
+        healthy_count = sum(1 for c in health_status.values() if c.get("status") == "healthy")
+        total_count = len(health_status)
+
+        if all_healthy:
+            logger.info(f"健康检查完成: 所有 {total_count} 个服务都健康")
+            return BaseResponse(
+                data={
+                    "overall_status": "healthy",
+                    "services": health_status,
+                    "summary": {"healthy_services": healthy_count, "total_services": total_count},
+                },
+                message=f"All {total_count} services are healthy"
+            )
+        else:
+            from fastapi import HTTPException
+            unhealthy_count = total_count - healthy_count
+            logger.warning(f"{unhealthy_count}/{total_count} 个服务不健康")
+            raise HTTPException(
+                status_code=503,
+                detail=f"{unhealthy_count} of {total_count} services are unhealthy"
+            )
+
+
+health_service = HealthCheckService()
+
+
+def discover_and_register_health_checks() -> None:
+    """扫描 feature manifest 注册健康检查"""
+    import importlib
+    from pathlib import Path
+
+    features_dir = Path(__file__).parent.parent / "features"
+    for feature_path in sorted(features_dir.iterdir()):
+        if not feature_path.is_dir() or feature_path.name.startswith("_"):
+            continue
+        manifest_file = feature_path / "manifest.py"
+        if not manifest_file.exists():
+            continue
+        try:
+            mod = importlib.import_module(f"app.features.{feature_path.name}.manifest")
+            manifest = getattr(mod, "manifest", None)
+            if manifest and manifest.health_checks:
+                for name, check_func in manifest.health_checks.items():
+                    register_health_check(name, check_func)
+        except Exception as e:
+            logger.warning(f"加载 feature manifest 健康检查失败: {feature_path.name}: {e}")
+
+
+# 启动时自动注册
+discover_and_register_health_checks()

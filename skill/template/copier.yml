@@ -1,0 +1,223 @@
+# FastAPI 模块化项目脚手架 - Copier 模板配置
+# 运行: copier run ./template <目标目录>
+
+_subdirectory: project
+_min_copier_version: "9.0"
+_templates_suffix: .jinja
+_answers_file: .copier-answers.yml
+
+_exclude:
+  - "__pycache__"
+  - "*.pyc"
+  - ".DS_Store"
+
+_skip_if_exists:
+  - ".env"
+
+# ============================================================
+# 项目身份
+# ============================================================
+
+project_name:
+  type: str
+  help: "项目名称（用于应用标题、容器名、缓存键前缀）"
+  default: "myapp"
+
+project_slug:
+  type: str
+  default: "{{ project_name|lower|replace(' ', '_')|replace('-', '_') }}"
+  when: false
+
+project_description:
+  type: str
+  help: "项目简短描述"
+  default: "FastAPI 后端应用"
+
+project_version:
+  type: str
+  help: "初始版本号"
+  default: "0.1.0"
+
+use_china_mirrors:
+  type: bool
+  help: "是否使用国内镜像源（apt/pip，适用于国内网络环境）"
+  default: true
+
+author_name:
+  type: str
+  help: "作者/团队名称"
+  default: "Dev Team"
+
+author_email:
+  type: str
+  help: "作者邮箱"
+  default: "dev@example.com"
+
+# ============================================================
+# 功能模块选择
+# ============================================================
+
+features:
+  type: yaml
+  help: |
+    选择要包含的功能模块（逗号分隔，如: auth,redis,celery）
+
+    可选模块：
+      auth       - JWT 认证（登录/注册/密码重置）
+      admin      - SQLAdmin 管理面板（可独立使用，搭配 auth 可启用 JWT 保护）
+      redis      - 缓存层 + Celery 消息代理
+      celery     - 异步任务队列 + Beat 调度器
+      storage    - 对象存储（Cloudflare R2 / AWS S3）
+      email      - 邮件服务（Resend）
+      radar      - HTTP 监控面板（/__radar）
+  multiselect: true
+  choices:
+    - auth
+    - admin
+    - redis
+    - celery
+    - storage
+    - email
+    - radar
+  default: []
+
+# ============================================================
+# 数据库（始终需要）
+# ============================================================
+
+db_name:
+  type: str
+  help: "PostgreSQL 数据库名"
+  default: "{{ project_slug }}"
+
+db_port:
+  type: int
+  help: "PostgreSQL 宿主机映射端口（容器内固定 5432）"
+  default: 5434
+
+db_user:
+  type: str
+  help: "PostgreSQL 用户名"
+  default: "postgres"
+
+db_password:
+  type: str
+  help: "PostgreSQL 密码（生产环境请修改）"
+  default: "postgres"
+  secret: true
+
+# ============================================================
+# Auth 模块（条件）
+# ============================================================
+
+admin_email:
+  type: str
+  help: "初始管理员邮箱"
+  default: "admin@example.com"
+  when: "'auth' in features"
+
+admin_password:
+  type: str
+  help: "初始管理员密码（生产环境请修改）"
+  default: "changeme"
+  secret: true
+  when: "'auth' in features"
+
+secret_key:
+  type: str
+  help: "JWT 密钥（生产环境请更换）"
+  default: "dev-secret-key-change-in-production"
+  secret: true
+  when: "'auth' in features"
+
+# ============================================================
+# Celery 模块（条件）
+# ============================================================
+
+celery_concurrency:
+  type: int
+  help: "Celery Worker 并发数"
+  default: 4
+  when: "'celery' in features"
+
+# ============================================================
+# Email 模块（条件）
+# ============================================================
+
+resend_api_key:
+  type: str
+  help: "Resend API 密钥（占位符）"
+  default: "re_xxxxxxxxxxxxxxxxxxxxx"
+  secret: true
+  when: "'email' in features"
+
+resend_from_email:
+  type: str
+  help: "Resend 发件人邮箱"
+  default: "noreply@example.com"
+  when: "'email' in features"
+
+# ============================================================
+# Storage 模块（条件）
+# ============================================================
+
+r2_endpoint_url:
+  type: str
+  help: "R2/S3 端点 URL（占位符）"
+  default: "https://<account-id>.r2.cloudflarestorage.com"
+  when: "'storage' in features"
+
+r2_bucket_name:
+  type: str
+  help: "R2/S3 存储桶名称"
+  default: "{{ project_slug }}-storage"
+  when: "'storage' in features"
+
+r2_access_key_id:
+  type: str
+  help: "R2/S3 访问密钥（占位符）"
+  default: "<your-access-key>"
+  secret: true
+  when: "'storage' in features"
+
+r2_secret_access_key:
+  type: str
+  help: "R2/S3 密钥（占位符）"
+  default: "<your-secret-key>"
+  secret: true
+  when: "'storage' in features"
+
+# ============================================================
+# API 端口
+# ============================================================
+
+api_host_port:
+  type: int
+  help: "API 宿主机映射端口（容器内固定 8000）"
+  default: 8002
+
+redis_host_port:
+  type: int
+  help: "Redis 宿主机映射端口（容器内固定 6379）"
+  default: 6381
+  when: "'redis' in features or 'celery' in features"
+
+# ============================================================
+# 生成后消息
+# ============================================================
+
+_message: |
+  项目 "{{ project_name }}" 脚手架生成成功！
+
+  已启用的模块: {{ features }}
+
+  后续步骤：
+    1. cd {{ project_slug }} （或进入目标目录）
+    2. 检查 .env 并更新生产环境凭据
+    3. uv lock
+    4. docker compose up -d
+    5. 访问 http://localhost:{{ api_host_port }}/docs
+
+  {% if 'auth' in features %}
+  管理员面板: http://localhost:{{ api_host_port }}/admin
+  {% endif %}

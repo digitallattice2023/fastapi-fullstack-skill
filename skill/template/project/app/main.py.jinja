@@ -1,0 +1,313 @@
+"""
+{{ project_name }} - FastAPI 应用入口
+配置路由、中间件、生命周期事件
+"""
+
+import importlib
+from contextlib import asynccontextmanager
+from pathlib import Path
+from fastapi import FastAPI, Request, status, HTTPException
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+{% if 'radar' in features %}
+from fastapi_radar import Radar
+{% endif %}
+from fastapi.middleware.cors import CORSMiddleware
+from loguru import logger
+
+from app.core.config import settings
+from app.core.postgresql import db_manager
+{% if 'redis' in features %}
+from app.core.redis import redis_manager
+{% endif %}
+{% if 'auth' in features %}
+from app.core.init_db import initialize_database
+{% endif %}
+from app.shared.logs import setup_logger
+from app.shared.health import health_service
+from app.shared.models import BaseResponse
+from app.shared.error_codes import ErrorCode, get_hint
+{% if 'admin' in features or 'auth' in features %}
+from app.shared.admin import setup_sqladmin
+{% endif %}
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期管理"""
+    logger.info(f"正在启动 {{ project_name }} v{{ project_version }}")
+
+    setup_logger()
+
+    # 初始化数据库连接
+    try:
+        db_manager.create_engine()
+        await db_manager.create_session_factory()
+        logger.info("数据库连接已初始化")
+    except Exception as e:
+        logger.error(f"数据库初始化失败: {e}")
+        raise
+
+{% if 'redis' in features %}
+    # 初始化Redis连接
+    redis_manager.create_pool()
+    logger.info("Redis连接已初始化")
+{% endif %}
+
+{% if 'auth' in features %}
+    # 生产环境下初始化数据库（alembic迁移 + admin用户）
+    logger.info("初始化数据库...")
+    await initialize_database()
+{% endif %}
+
+    # 执行初始健康检查
+    logger.info("执行初始健康检查...")
+    try:
+        health_result = await health_service.perform_health_check()
+        logger.info("初始健康检查通过")
+    except HTTPException as e:
+        logger.warning(f"初始健康检查失败: {e.detail}，但继续启动")
+    except Exception as e:
+        logger.warning(f"初始健康检查异常: {str(e)}，但继续启动")
+
+    yield
+
+    # 关闭时执行
+    logger.info("正在关闭应用...")
+    await db_manager.close()
+    logger.info("数据库连接已关闭")
+{% if 'redis' in features %}
+    await redis_manager.close()
+    logger.info("Redis连接已关闭")
+{% endif %}
+
+
+app = FastAPI(
+    title="{{ project_name }}",
+    version="{{ project_version }}",
+    description="{{ project_description }}",
+    debug=settings.debug,
+    lifespan=lifespan
+)
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """全局异常处理器，自动附加错误码和修复建议"""
+    if isinstance(exc, HTTPException):
+        return await http_exception_handler(request, exc)
+
+    logger.error(f"未处理的异常: {type(exc).__name__} - {str(exc)}", exc_info=True)
+
+    error_code = ErrorCode.INTERNAL_ERROR
+    hint = get_hint(error_code)
+
+    if settings.environment == "development":
+        error_detail = f"{type(exc).__name__}: {str(exc)}"
+    else:
+        error_detail = "Internal server error"
+
+    response_data = {"data": None, "message": error_detail}
+    response_data["error_code"] = error_code.value
+    if hint:
+        response_data["hint"] = hint
+
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content=response_data
+    )
+
+
+def _status_code_to_error_code(status_code: int) -> ErrorCode:
+    """
+    根据 HTTP 状态码推断对应的 ErrorCode。
+    这是全局兜底策略，精确错误码应由 AppException 携带。
+    """
+    mapping = {
+        400: ErrorCode.BAD_REQUEST,
+        401: ErrorCode.UNAUTHORIZED,
+        403: ErrorCode.FORBIDDEN,
+        404: ErrorCode.NOT_FOUND,
+        409: ErrorCode.CONFLICT,
+        422: ErrorCode.VALIDATION_ERROR,
+        500: ErrorCode.INTERNAL_ERROR,
+    }
+    return mapping.get(status_code, ErrorCode.UNKNOWN_ERROR)
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """HTTPException 处理器，自动附加错误码和修复建议"""
+    logger.warning(f"HTTP异常: {exc.status_code} - {exc.detail}")
+
+    # 优先使用 AppException 携带的精确错误码
+    error_code = getattr(exc, "error_code", None)
+    if error_code is None:
+        error_code = _status_code_to_error_code(exc.status_code)
+
+    hint = get_hint(error_code) if error_code else None
+
+    response_data = {"data": None, "message": exc.detail}
+    if error_code:
+        response_data["error_code"] = error_code.value
+    if hint:
+        response_data["hint"] = hint
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=response_data
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """请求验证异常处理器，自动附加错误码和修复建议"""
+    errors = exc.errors()
+    error_messages = []
+    for error in errors:
+        field = " -> ".join(str(loc) for loc in error["loc"])
+        message = error["msg"]
+        error_messages.append(f"{field}: {message}")
+
+    error_detail = "; ".join(error_messages)
+    logger.warning(f"请求验证失败: {error_detail}")
+
+    error_code = ErrorCode.VALIDATION_ERROR
+    hint = get_hint(error_code)
+
+    response_data = {"data": None, "message": f"Validation error: {error_detail}"}
+    response_data["error_code"] = error_code.value
+    if hint:
+        response_data["hint"] = hint
+
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content=response_data
+    )
+
+
+def discover_and_register_routers(app: FastAPI) -> None:
+    """
+    自动发现并注册 feature 路由。
+
+    约定：每个 feature 目录下必须有 manifest.py，声明路由元数据。
+    """
+    features_dir = Path(__file__).parent / "features"
+    if not features_dir.exists():
+        return
+
+    for feature_path in sorted(features_dir.iterdir()):
+        if not feature_path.is_dir() or feature_path.name.startswith("_"):
+            continue
+
+        manifest_file = feature_path / "manifest.py"
+        if not manifest_file.exists():
+            continue
+
+        module_name = f"app.features.{feature_path.name}.manifest"
+        try:
+            manifest_mod = importlib.import_module(module_name)
+        except Exception as e:
+            logger.error(f"无法导入 manifest {module_name}: {e}")
+            continue
+
+        manifest = getattr(manifest_mod, "manifest", None)
+        if manifest is None:
+            continue
+
+        if not manifest.router_module:
+            continue
+
+        try:
+            router_mod = importlib.import_module(manifest.router_module)
+        except Exception as e:
+            logger.error(f"无法导入路由模块 {manifest.router_module}: {e}")
+            continue
+
+        router = getattr(router_mod, "router", None)
+        if router is None:
+            logger.warning(f"模块 {manifest.router_module} 未暴露 `router` 变量，跳过")
+            continue
+
+        prefix = manifest.router_prefix or f"/api/{feature_path.name}"
+        tags = manifest.router_tags or [feature_path.name.title()]
+
+        app.include_router(router, prefix=prefix, tags=tags)
+        logger.info(f"已注册路由: {prefix} -> {tags}")
+
+
+def setup_radar(app: FastAPI) -> None:
+    """初始化 FastAPI Radar 监控面板"""
+    radar = Radar(
+        app,
+        dashboard_path="/__radar",
+        exclude_paths=["/health"],
+        theme="auto",
+    )
+    radar.create_tables()
+
+
+# CORS 配置
+if settings.debug:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    allowed_origins = settings.cors_origins if settings.cors_origins else []
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+        allow_headers=["*"],
+    )
+
+
+@app.get("/health", response_model=BaseResponse, tags=["Health Check"])
+async def health_check():
+    """健康检查端点"""
+    return await health_service.perform_health_check()
+
+
+@app.get("/", response_model=BaseResponse[dict], tags=["Root"])
+async def root():
+    """根端点"""
+    return BaseResponse(
+        data={
+            "app_name": settings.app_name,
+            "version": settings.app_version,
+            "environment": settings.environment,
+            "debug": settings.debug
+        },
+        message=f"Welcome to {{ project_name }} API"
+    )
+
+
+# 自动发现并注册所有 feature 路由
+discover_and_register_routers(app)
+
+{% if 'admin' in features or 'auth' in features %}
+# 初始化 SQLAdmin 管理面板
+setup_sqladmin(app)
+{% endif %}
+
+{% if 'radar' in features %}
+# 启用 HTTP 监控面板
+setup_radar(app)
+{% endif %}
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        log_level="info"
+    )

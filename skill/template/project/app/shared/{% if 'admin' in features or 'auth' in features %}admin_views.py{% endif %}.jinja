@@ -1,0 +1,84 @@
+"""
+SQLAdmin 视图定义模块
+支持两种注册方式：
+1. 本模块中显式定义（如 UserAdmin，仅 auth 启用时）
+2. 自动发现 feature 目录下的 admin_views.py 中的 ModelView 子类
+"""
+
+import importlib
+from pathlib import Path
+from sqladmin import ModelView
+from loguru import logger
+
+{% if 'auth' in features %}
+from app.features.auth.models import User
+
+
+class UserAdmin(ModelView, model=User):
+    """用户模型的管理视图"""
+
+    name = "User"
+    name_plural = "Users"
+    icon = "fa-solid fa-user"
+    category = "Accounts"
+    category_icon = "fa-solid fa-users"
+
+    can_create = False
+    can_edit = True
+    can_delete = False
+    can_view_details = True
+
+    column_list = [
+        User.id, User.email, User.username,
+        User.is_active, User.is_admin, User.email_verified,
+        User.created_at, User.last_login,
+    ]
+    column_details_exclude_list = [User.hashed_password]
+    column_searchable_list = [User.email, User.username]
+    column_sortable_list = [User.email, User.username, User.created_at, User.last_login]
+    column_default_sort = [(User.created_at, True)]
+    page_size = 25
+    page_size_options = [10, 25, 50, 100]
+    form_excluded_columns = [User.hashed_password]
+{% endif %}
+
+
+def discover_admin_views() -> list[type[ModelView]]:
+    """
+    自动发现 feature 目录下的 ModelView 子类。
+
+    约定：每个 feature 的 admin_views.py 中定义的 ModelView 子类会被自动注册。
+    同时也会注册本模块中定义的视图。
+    """
+    views = []
+
+    # 先收集本模块中定义的 ModelView 子类
+    for attr_name in dir(__import__(__name__, fromlist=[""])):
+        attr = globals().get(attr_name)
+        if (isinstance(attr, type)
+                and issubclass(attr, ModelView)
+                and attr is not ModelView
+                and attr.__module__ == __name__):
+            views.append(attr)
+
+    # 再扫描各 feature 的 admin_views.py
+    features_dir = Path(__file__).parent.parent / "features"
+    for feature_path in sorted(features_dir.iterdir()):
+        if not feature_path.is_dir() or feature_path.name.startswith("_"):
+            continue
+        admin_file = feature_path / "admin_views.py"
+        if not admin_file.exists():
+            continue
+        module_name = f"app.features.{feature_path.name}.admin_views"
+        try:
+            mod = importlib.import_module(module_name)
+            for attr_name in dir(mod):
+                attr = getattr(mod, attr_name)
+                if (isinstance(attr, type)
+                        and issubclass(attr, ModelView)
+                        and attr is not ModelView):
+                    views.append(attr)
+        except ImportError as e:
+            logger.warning(f"无法导入 {module_name}: {e}")
+
+    return views

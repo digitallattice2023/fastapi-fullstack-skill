@@ -1,0 +1,38 @@
+# {{ project_name }}
+
+{{ project_description }}
+
+## 快速开始
+
+```bash
+# 安装依赖
+uv sync
+uv lock
+
+# 启动服务
+docker compose up -d
+
+# 查看状态
+docker compose ps
+```
+
+## 访问地址
+
+- API: http://localhost:{{ api_host_port }}/
+- Swagger 文档: http://localhost:{{ api_host_port }}/docs
+{% if 'auth' in features %}- Admin 面板: http://localhost:{{ api_host_port }}/admin
+{% endif %}- 健康检查: http://localhost:{{ api_host_port }}/health
+{% if 'radar' in features %}- Radar 监控: http://localhost:{{ api_host_port }}/__radar
+{% endif %}
+
+## 已启用模块
+
+{% if 'auth' in features %}- **Auth**: JWT 认证（登录/注册/密码重置）{% endif %}
+{% if 'redis' in features %}- **Redis**: 缓存层{% endif %}
+{% if 'celery' in features %}- **Celery**: 异步任务队列{% endif %}
+{% if 'storage' in features %}- **Storage**: 对象存储（R2/S3）{% endif %}
+{% if 'email' in features %}- **Email**: 邮件服务（Resend）{% endif %}
+
+## 技术栈
+
+FastAPI + SQLModel + PostgreSQL + {% if 'redis' in features %}Redis + {% endif %}{% if 'celery' in features %}Celery + {% endif %}{% if 'storage' in features %}Boto3 + {% endif %}uv + Docker

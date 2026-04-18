@@ -1,0 +1,84 @@
+"""
+SQLAdmin JWT 认证后端
+仅当 auth 模块启用时此文件才会生成。
+"""
+
+from sqladmin.authentication import AuthenticationBackend
+from starlette.requests import Request
+from starlette.responses import RedirectResponse
+
+from app.core.config import settings
+from app.core.postgresql import get_sync_db
+from app.features.auth.models import User
+from app.features.auth.dependencies import JWTManager, PasswordManager
+from app.features.auth.dependencies import TokenPayload
+
+
+class AdminAuth(AuthenticationBackend):
+    """基于 JWT 的 SQLAdmin 认证后端"""
+
+    def __init__(self, secret_key: str):
+        super().__init__(secret_key=secret_key)
+        self.jwt_manager = JWTManager()
+        self.password_manager = PasswordManager()
+
+    async def login(self, request: Request) -> bool:
+        """验证管理员登录凭据"""
+        form = await request.form()
+        email = form.get("username")
+        password = form.get("password")
+
+        if not email or not password:
+            return False
+
+        sync_db = get_sync_db()
+        try:
+            from sqlmodel import select
+
+            result = sync_db.execute(select(User).where(User.email == email))
+            user = result.scalar_one_or_none()
+
+            if not user:
+                return False
+
+            if not self.password_manager.verify_password(password, user.hashed_password):
+                return False
+
+            if not user.is_admin:
+                return False
+
+            return True
+        except Exception:
+            return False
+        finally:
+            sync_db.close()
+
+    async def logout(self, request: Request) -> bool:
+        return True
+
+    async def authenticate(self, request: Request) -> bool | RedirectResponse:
+        """验证请求是否具有管理员权限"""
+        token = request.cookies.get("admin_token")
+
+        if not token:
+            return RedirectResponse(request.url_for("admin:login"), status_code=302)
+
+        try:
+            payload = self.jwt_manager.decode_token(token)
+            token_data = TokenPayload(**payload)
+
+            sync_db = get_sync_db()
+            try:
+                from sqlmodel import select
+
+                result = sync_db.execute(select(User).where(User.id == token_data.sub))
+                user = result.scalar_one_or_none()
+
+                if not user or not user.is_admin:
+                    return RedirectResponse(request.url_for("admin:login"), status_code=302)
+
+                return True
+            finally:
+                sync_db.close()
+        except Exception:
+            return RedirectResponse(request.url_for("admin:login"), status_code=302)

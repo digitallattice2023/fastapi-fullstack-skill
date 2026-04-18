@@ -1,0 +1,72 @@
+"""
+SQLAdmin 集成模块
+负责初始化 Admin 面板并自动注册各模型视图
+"""
+
+from fastapi import FastAPI
+from loguru import logger
+from sqladmin import Admin
+
+from app.core.config import settings
+from app.core.postgresql import sync_db_manager
+{% if 'auth' in features %}
+from app.shared.admin_auth import AdminAuth
+{% endif %}
+{% if 'admin' in features or 'auth' in features %}
+from app.shared.admin_views import discover_admin_views
+{% endif %}
+
+
+def setup_sqladmin(app: FastAPI) -> Admin:
+    """
+    初始化 SQLAdmin 管理面板。
+
+    设计要点：
+    - 使用同步 SQLAlchemy 引擎：SQLAdmin 对同步引擎支持更稳定。
+    - 通过 discover_admin_views() 自动发现并注册所有 feature 的 ModelView。
+{% if 'auth' in features %}
+    - 集成自定义认证后端 AdminAuth，保护面板访问。
+{% elif 'admin' in features %}
+    - 无认证保护：适用于本地工具项目，直接访问 /admin。
+{% endif %}
+
+    Args:
+        app: FastAPI 应用实例
+
+    Returns:
+        Admin: 初始化完成的 SQLAdmin 实例
+    """
+
+{% if 'auth' in features %}
+    authentication_backend = AdminAuth(secret_key=settings.secret_key)
+{% else %}
+    authentication_backend = None
+{% endif %}
+
+    engine = sync_db_manager.create_engine()
+
+    admin_kwargs = {
+        "app": app,
+        "engine": engine,
+        "base_url": "/admin",
+        "title": "Admin",
+        "debug": False,
+    }
+{% if 'auth' in features %}
+    admin_kwargs["authentication_backend"] = authentication_backend
+{% endif %}
+
+    admin = Admin(**admin_kwargs)
+
+    # 自动发现并注册模型视图
+{% if 'admin' in features or 'auth' in features %}
+    for view_class in discover_admin_views():
+        admin.add_view(view_class)
+        logger.info(f"已注册 Admin 视图: {view_class.__name__}")
+{% else %}
+    logger.info("SQLAdmin 已初始化（未启用 admin_views）")
+{% endif %}
+
+    logger.info("SQLAdmin 管理面板已初始化")
+
+    return admin

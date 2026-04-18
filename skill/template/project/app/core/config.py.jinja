@@ -1,0 +1,167 @@
+"""
+应用配置模块
+按功能模块拆分 Config Mixin，仅启用的模块才会继承
+"""
+
+from typing import Optional, List
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+# ============================================================
+# 核心配置（始终继承）
+# ============================================================
+
+class AppCore(BaseSettings):
+    """应用基础配置"""
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
+
+    app_name: str = Field(default="{{ project_slug }}", description="应用名称")
+    app_version: str = Field(default="{{ project_version }}", description="应用版本")
+    debug: bool = Field(default=True, description="调试模式")
+    environment: str = Field(default="development", description="运行环境")
+    allowed_origins: str = Field(default="", description="允许的跨域源")
+
+    @property
+    def cors_origins(self) -> List[str]:
+        """获取CORS允许的源列表"""
+        if not self.allowed_origins:
+            return ["*"] if self.debug else []
+        return [origin.strip() for origin in self.allowed_origins.split(",")]
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment.lower() == "production"
+
+    @property
+    def is_development(self) -> bool:
+        return self.environment.lower() == "development"
+
+
+# ============================================================
+# 数据库配置（始终继承）
+# ============================================================
+
+class DatabaseConfig(BaseSettings):
+    """数据库配置"""
+    database_url: str = Field(description="数据库连接URL")
+    db_pool_size: int = Field(default=20, description="数据库连接池大小")
+    db_max_overflow: int = Field(default=30, description="数据库连接池最大溢出")
+    db_pool_timeout: int = Field(default=30, description="数据库连接超时")
+
+    @field_validator("database_url")
+    @classmethod
+    def convert_database_url(cls, v: str) -> str:
+        """转换数据库URL为异步格式"""
+        if v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
+
+
+{% if 'redis' in features %}
+# ============================================================
+# Redis 配置
+# ============================================================
+
+class RedisConfig(BaseSettings):
+    """Redis配置"""
+    redis_url: Optional[str] = Field(default=None, description="Redis连接URL")
+    redis_pool_size: int = Field(default=20, description="Redis连接池大小")
+    redis_pool_timeout: int = Field(default=10, description="Redis连接超时")
+
+    @field_validator("redis_url")
+    @classmethod
+    def convert_redis_url(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if not v.startswith("redis://"):
+            return f"redis://{v}"
+        return v
+
+{% endif %}
+{% if 'celery' in features %}
+# ============================================================
+# Celery 配置
+# ============================================================
+
+class CeleryConfig(BaseSettings):
+    """Celery配置"""
+    celery_broker_url: Optional[str] = Field(default=None, description="Celery消息代理URL")
+    celery_result_backend: Optional[str] = Field(default=None, description="Celery结果后端URL")
+    celery_concurrency: int = Field(default={{ celery_concurrency }}, description="Celery并发数")
+
+{% endif %}
+{% if 'storage' in features %}
+# ============================================================
+# 对象存储配置
+# ============================================================
+
+class StorageConfig(BaseSettings):
+    """Cloudflare R2 / S3 存储配置"""
+    service_name: str = Field(default="s3", description="对象存储服务名")
+    endpoint_url: Optional[str] = Field(default=None, description="R2端点URL")
+    aws_access_key_id: Optional[str] = Field(default=None, description="AWS访问密钥ID")
+    aws_secret_access_key: Optional[str] = Field(default=None, description="AWS秘密访问密钥")
+    region_name: str = Field(default="auto", description="区域名称")
+    r2_bucket_name: Optional[str] = Field(default=None, description="R2存储桶名称")
+
+{% endif %}
+{% if 'auth' in features %}
+# ============================================================
+# Auth 配置
+# ============================================================
+
+class AuthConfig(BaseSettings):
+    """JWT 认证配置"""
+    admin_email: str = Field(default="{{ admin_email }}", description="管理员邮箱")
+    admin_password: str = Field(default="{{ admin_password }}", description="管理员密码")
+    secret_key: str = Field(default="{{ secret_key }}", description="JWT密钥")
+    algorithm: str = Field(default="HS256", description="JWT算法")
+    access_token_expire_minutes: int = Field(default=30, description="访问令牌过期时间（分钟）")
+    refresh_token_expire_days: int = Field(default=7, description="刷新令牌过期时间（天）")
+    verification_code_expire_minutes: int = Field(default=10, description="验证码过期时间（分钟）")
+    verification_code_length: int = Field(default=6, description="验证码长度")
+    user_cache_expire_minutes: int = Field(default=60, description="用户缓存过期时间（分钟）")
+    auth_cache_expire_minutes: int = Field(default=30, description="认证缓存过期时间（分钟）")
+
+{% endif %}
+{% if 'email' in features %}
+# ============================================================
+# Email 配置
+# ============================================================
+
+class EmailConfig(BaseSettings):
+    """Resend 邮件服务配置"""
+    resend_api_key: Optional[str] = Field(default=None, description="Resend API密钥")
+    resend_from_email: Optional[str] = Field(default=None, description="Resend发件人邮箱")
+
+{% endif %}
+
+# ============================================================
+# 组合 Settings（仅继承已启用的模块）
+# ============================================================
+
+class Settings(
+    AppCore,
+    DatabaseConfig,
+{% if 'redis' in features %}    RedisConfig,
+{% endif %}
+{% if 'celery' in features %}    CeleryConfig,
+{% endif %}
+{% if 'storage' in features %}    StorageConfig,
+{% endif %}
+{% if 'auth' in features %}    AuthConfig,
+{% endif %}
+{% if 'email' in features %}    EmailConfig,
+{% endif %}
+):
+    """组合式配置类，仅继承已启用功能模块的配置 Mixin。"""
+    pass
+
+
+settings = Settings()

@@ -1,0 +1,114 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: {{ project_slug }}_db
+    environment:
+      POSTGRES_DB: {{ db_name }}
+      POSTGRES_USER: {{ db_user }}
+      POSTGRES_PASSWORD: {{ db_password }}
+    ports:
+      - "{{ db_port }}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{ db_user }} -d {{ db_name }}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+{% if 'redis' in features or 'celery' in features %}
+  redis:
+    image: redis:7-alpine
+    container_name: {{ project_slug }}_redis
+    ports:
+      - "{{ redis_host_port }}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+{% endif %}
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: FASTAPI
+    container_name: {{ project_slug }}_api
+    ports:
+      - "{{ api_host_port }}:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./app:/app/app:ro
+      - ./alembic:/app/alembic
+    depends_on:
+      db:
+        condition: service_healthy
+{% if 'redis' in features or 'celery' in features %}
+      redis:
+        condition: service_healthy
+{% endif %}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+{% if 'celery' in features %}
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: CELERY
+    container_name: {{ project_slug }}_worker
+    environment:
+      - SERVICE=CELERY
+    env_file:
+      - .env
+    volumes:
+      - ./app:/app/app:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A app.celery_app worker -P eventlet -c {{ celery_concurrency }} -l info
+
+  beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: CELERY
+    container_name: {{ project_slug }}_beat
+    environment:
+      - SERVICE=CELERY
+    env_file:
+      - .env
+    volumes:
+      - ./app:/app/app:ro
+      - beat_data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A app.celery_app beat -l info
+{% endif %}
+
+volumes:
+  postgres_data:
+{% if 'redis' in features or 'celery' in features %}
+  redis_data:
+{% endif %}
+{% if 'celery' in features %}
+  beat_data:
+{% endif %}

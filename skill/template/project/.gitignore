@@ -1,0 +1,125 @@
+# Byte-compiled / optimized / DLL files
+
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Environment variables and config
+
+.env.local
+.env.production
+config.ini
+settings.json
+
+# Database files
+
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+db.sqlite3-journal
+
+# Logs
+
+*.log
+logs/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Testing
+
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+ *.cover.hypothesis/.pytest_cache/test_* .py
+*_test.py
+tests/
+
+# IDE and editors
+
+.vscode/
+.spyderproject
+.spyproject
+.ropeproject
+.windsurf/
+
+# Type checking
+
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+
+# OS generated files
+
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+tmp/
+temp/
+
+# FastAPI specific
+
+static/
+media/
+uploads/
+cache/
+.cache/
+
+# Local development
+
+local/
+dev/
+
+# Custom
+
+.trae/
+.trae/*

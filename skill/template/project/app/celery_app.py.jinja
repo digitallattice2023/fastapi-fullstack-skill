@@ -1,0 +1,83 @@
+"""
+Celery应用配置
+通过 Feature Manifest 自动发现任务
+"""
+
+import importlib
+from pathlib import Path
+from celery import Celery
+from loguru import logger
+
+from app.core.config import settings
+
+# 创建Celery应用实例
+celery_app = Celery(
+    settings.app_name.lower(),
+    broker=settings.celery_broker_url,
+    backend=settings.celery_result_backend,
+)
+
+# Celery配置
+celery_app.conf.update(
+    task_serializer="json",
+    accept_content=["json"],
+    result_serializer="json",
+    timezone="UTC",
+    enable_utc=True,
+    task_routes={},
+    result_expires=3600,
+    task_time_limit=300,
+    task_soft_time_limit=240,
+    worker_prefetch_multiplier=1,
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
+    worker_send_task_events=True,
+    task_send_sent_event=True,
+    # Beat 调度配置：空字典，由 feature manifest 填充
+    beat_schedule={},
+)
+
+
+def discover_celery_tasks() -> list[str]:
+    """
+    通过 Feature Manifest 发现 Celery 任务包。
+
+    约定：每个 feature 的 manifest.py 声明 tasks_package 字段，
+    指向包含 tasks.py 的包路径。
+    """
+    _features_dir = Path(__file__).parent / "features"
+    packages = []
+
+    for d in sorted(_features_dir.iterdir()):
+        if not d.is_dir() or d.name.startswith("_"):
+            continue
+
+        manifest_file = d / "manifest.py"
+        if not manifest_file.exists():
+            continue
+
+        module_name = f"app.features.{d.name}.manifest"
+        try:
+            mod = importlib.import_module(module_name)
+            manifest = getattr(mod, "manifest", None)
+            if manifest and manifest.tasks_package:
+                packages.append(manifest.tasks_package)
+                # 合并 beat schedule
+                celery_app.conf.beat_schedule.update(manifest.beat_schedule)
+        except Exception as e:
+            logger.error(f"加载 feature manifest {module_name} 失败: {e}")
+
+    return packages
+
+
+# 任务发现：自动扫描所有 feature 模块
+celery_app.autodiscover_tasks(
+    packages=discover_celery_tasks(),
+    related_name="tasks",
+)
+
+logger.info(f"Celery应用已初始化，代理: {settings.celery_broker_url}")
+logger.info(f"Celery结果后端: {settings.celery_result_backend}")
+
+if __name__ == "__main__":
+    celery_app.start()
