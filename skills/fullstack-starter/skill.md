@@ -130,19 +130,20 @@ node --version
 
 ### Phase 3: Copier 执行
 
-获取当前 skill 所在目录，计算后端和前端模板路径。
-`dst_path` 始终设为当前工作目录 `.`，模板的 `_subdirectory: project` 会在当前目录直接生成 `backend/` 和 `frontend/`，无需额外嵌套项目名目录。
+获取当前 skill 目录和模板路径。**必须使用绝对路径**，`os.getcwd()` 获取用户当前工作目录作为目标。
 
 ```python
 from copier import run_copy
 import os
 
-# 当前 skill 目录路径（用于计算相对路径）
-skill_dir = os.path.dirname(__file__)  # 或由 Claude 推断当前文件路径
-backend_template = os.path.join(skill_dir, "..", "backend-fastapi-starter", "template")
-frontend_template = os.path.join(skill_dir, "..", "frontend-vue-starter", "template")
-# 当前工作目录（用户在执行 skill 时所在的目录）
-target_dir = "."
+# 当前 skill 所在目录（由 Claude 读取 skill.md 时自行推断绝对路径）
+# 本 skill 位于: G:\Projects\DevProjects\Template\Fastapi\base\skills\fullstack-starter\
+# 因此:
+BASE_SKILLS_DIR = r"<skills目录的绝对路径>"
+backend_template = os.path.join(BASE_SKILLS_DIR, "backend-fastapi-starter", "template")
+frontend_template = os.path.join(BASE_SKILLS_DIR, "frontend-vue-starter", "template")
+# 目标目录：用户当前工作目录
+target_dir = os.getcwd()
 ```
 
 **后端 Copier 调用**（backend-only 或 fullstack）：
