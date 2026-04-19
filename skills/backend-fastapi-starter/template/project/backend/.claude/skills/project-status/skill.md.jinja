@@ -1,0 +1,61 @@
+---
+name: project-status
+description: >
+  Display project capability matrix: enabled modules, API route overview,
+  pending endpoints, service health. Triggers when: user asks for project
+  status, "what features are enabled", "show me the API", "what's missing",
+  "项目状态", "查看功能", "能力矩阵".
+---
+
+# 项目状态报告 Skill
+
+输出项目能力矩阵、已启用模块、API 路由概览。
+
+## 工作流
+
+### Step 1: 分析已启用模块
+
+读取 `app/features/` 目录，列出所有 feature 目录。
+对每个 feature:
+- 检查 `manifest.py` 是否存在
+- 解析 `manifest` 变量，获取声明的路由、任务、模型
+- 检查 `router.py`、`models.py`、`service/` 是否存在
+
+### Step 2: 分析 API 路由
+
+使用以下命令获取所有注册的路由:
+```python
+from app.main import app
+for route in app.routes:
+    methods = getattr(route, "methods", None)
+    path = getattr(route, "path", None)
+    if methods and path:
+        print(f"{list(methods)} {path}")
+```
+
+### Step 3: 检查健康状态
+
+```bash
+curl -s http://localhost:{{ api_host_port }}/health | python -m json.tool
+```
+
+### Step 4: 输出能力矩阵
+
+以表格形式展示:
+
+| Feature | 路由 | 模型 | Service | Celery | 健康检查 |
+|---------|------|------|---------|--------|---------|
+| auth | {% if 'auth' in features %}已注册{% else %}未启用{% endif %} | ... | ... | ... | ... |
+
+### Step 5: 列出待开发接口
+
+根据 manifest 声明的 `router_module`，对比 `router.py` 中实际注册的端点，
+提示用户还有哪些接口可以开发。
+
+### Step 6: Docker 服务状态
+
+```bash
+docker compose ps
+```
+
+展示各容器运行状态。

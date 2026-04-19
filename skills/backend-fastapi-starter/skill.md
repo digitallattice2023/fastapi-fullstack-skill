@@ -1,16 +1,18 @@
 ---
-name: modular-fullstack-starter
+name: backend-fastapi-starter
 description: >
-  Interactive modular full-stack project generator for FastAPI base templates.
+  Interactive modular backend project generator for FastAPI base templates.
   Uses Copier for deterministic file generation (NOT manual file creation).
-  Triggers when: user wants to scaffold a new FastAPI project, create a full-stack app,
-  select modules for a project, add React frontend, set up Celery/Redis/Auth/R2/Email,
-  or initialize a new feature-based FastAPI project.
+  Triggers when: user wants to scaffold a new FastAPI backend project,
+  select modules for a backend, set up Celery/Redis/Auth/R2/Email,
+  or initialize a new feature-based FastAPI backend.
 ---
 
-# 模块化全栈项目脚手架
+# FastAPI 后端项目脚手架
 
-通过 Copier 模板确定性生成 FastAPI 全栈项目。**Skill 不直接生成任何文件**，所有文件生成由 Copier 负责。
+通过 Copier 模板确定性生成 FastAPI 后端项目。**Skill 不直接生成任何文件**，所有文件生成由 Copier 负责。
+
+生成的后端项目位于 `backend/` 目录下，可与前端项目并存于同一仓库。
 
 ## 核心原则
 
@@ -119,7 +121,7 @@ copier run "<skill目录>/template" "<目标目录>"
 ### Step 4: 安装 & 启动
 
 ```bash
-cd <目标目录>
+cd <目标目录>/backend
 uv lock
 docker compose up -d
 ```

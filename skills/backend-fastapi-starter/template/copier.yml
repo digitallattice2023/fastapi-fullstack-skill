@@ -1,5 +1,6 @@
-# FastAPI 模块化项目脚手架 - Copier 模板配置
+# FastAPI 后端项目脚手架 - Copier 模板配置
 # 运行: copier run ./template <目标目录>
+# 生成的项目位于 <目标目录>/backend/
 
 _subdirectory: project
 _min_copier_version: "9.0"
@@ -212,7 +213,7 @@ _message: |
   已启用的模块: {{ features }}
 
   后续步骤：
-    1. cd {{ project_slug }} （或进入目标目录）
+    1. cd {{ project_slug }}/backend （或进入目标目录/backend）
     2. 检查 .env 并更新生产环境凭据
     3. uv lock
     4. docker compose up -d

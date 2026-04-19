@@ -30,12 +30,13 @@ RUN pip install uv
 {% endif %}
 
 # 复制依赖文件
-COPY pyproject.toml uv.lock ./
-
-# 使用uv安装依赖
+COPY pyproject.toml ./
+# uv.lock 文件如果存在则复制（运行 uv lock 后生成）
+COPY uv.lock ./
 {% if use_china_mirrors %}
 ENV UV_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
 {% endif %}
+# 使用 uv sync 安装依赖（需要 uv.lock）
 RUN uv sync --frozen --no-dev --no-install-project
 
 # 复制应用代码

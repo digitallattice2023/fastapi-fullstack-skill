@@ -1,0 +1,25 @@
+import { defineStore } from 'pinia'
+import { ref } from 'vue'
+
+/**
+ * 应用全局状态管理
+ * 存储初始化状态和应用配置
+ */
+export const useAppStore = defineStore('app', () => {
+  const isInitialized = ref(false)
+  const appName = ref('{{ project_name }}')
+  const hasBackend = ref({{ has_backend|lower }})
+  const backendApiUrl = ref('{% if has_backend %}{{ backend_api_url }}{% else %}{% endif %}')
+
+  function markInitialized() {
+    isInitialized.value = true
+  }
+
+  return {
+    isInitialized,
+    appName,
+    hasBackend,
+    backendApiUrl,
+    markInitialized,
+  }
+})

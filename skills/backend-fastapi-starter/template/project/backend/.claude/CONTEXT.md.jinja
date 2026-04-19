@@ -1,0 +1,122 @@
+# {{ project_name }} - AI 上下文卡
+
+> 本文件压缩了项目所有开发约定。Claude Code 读取此文件后，应能理解所有编码规范，无需读取其他指令文件。
+
+## 技术栈
+- Python 3.12, FastAPI>=0.100.0, SQLModel+SQLAlchemy>=2.0, Pydantic v2
+- 包管理: uv | 数据库: asyncpg+PostgreSQL | 缓存: redis.asyncio
+- 日志: loguru | 容器: Docker Compose | 迁移: alembic | 任务队列: celery+redis
+
+## 项目结构（Feature-Based）
+```
+app/
+├── main.py              # 入口：lifespan、异常处理、CORS、自动路由注册
+├── core/
+│   ├── config.py        # Pydantic Settings，按模块 Mixin 组合
+│   ├── postgresql.py    # 异步/同步 DB 管理器
+│   └── redis.py         # 异步/同步 Redis（启用时）
+├── shared/
+│   ├── models.py        # BaseMixin, BaseResponse[T], PaginationParams
+│   ├── utils.py         # ULID/UTC 时间工具
+│   ├── logs.py          # Loguru 配置
+│   └── health.py        # 健康检查（Manifest 自动注册）
+└── features/            # 按业务领域划分
+    └── <feature>/
+        ├── manifest.py   # Feature 声明（路由、任务、模型、健康检查）
+        ├── router.py     # API 端点定义
+        ├── models.py     # SQLModel 模型
+        ├── dependencies.py # 本模块对外依赖（如 get_current_user）
+        └── service/      # 业务逻辑
+            ├── __init__.py  # 统一导出
+            ├── crud.py      # 标准 CRUD
+            └── <business>.py # 特定业务逻辑
+```
+
+## 核心约定
+
+### 1. 分层职责（Router-Service）
+- **Router**: 无 try-except，直接调 service，返回 `BaseResponse(data=..., message="...")`
+- **Service**: 业务验证抛 `HTTPException`，数据库操作 `try-except SQLAlchemyError` + `rollback`
+- **全局处理器**: 捕获所有异常，格式化为 `BaseResponse` JSON
+
+### 2. 响应格式
+- 所有端点返回 `BaseResponse[T]`，字段: `data: Optional[T]`, `message: str`
+- 禁止自行写 `JSONResponse`
+- 成功: `BaseResponse(data=obj, message="操作成功")`
+- 失败: 由全局处理器生成 `{"data": null, "message": "错误详情"}`
+
+### 3. HTTP 状态码
+| 码 | 场景 |
+|---|---|
+| 200 | 查询/更新成功 |
+| 201 | POST 创建资源 |
+| 202 | 异步任务已创建 |
+| 400 | 参数格式错误 |
+| 401 | Token 过期/无效 |
+| 403 | 权限不足 |
+| 404 | 资源未找到 |
+| 409 | 资源冲突（如重名） |
+| 422 | Pydantic 校验失败 |
+| 500 | 数据库/文件操作失败 |
+
+### 4. Feature Manifest 模式
+每个 feature 必须有 `manifest.py`，声明:
+```python
+manifest = FeatureManifest(
+    router_module="app.features.<name>.router",
+    router_prefix="/api/<name>",
+    router_tags=["<FeatureName>"],
+    tasks_package="app.features.<name>",  # 可选
+    admin_views_module="app.features.<name>.admin_views",  # 可选
+    models_module="app.features.<name>.models",
+    health_checks={},  # 可选
+)
+```
+
+### 5. 导入规范
+- 同一 feature 内: 相对导入（`.models`, `.service.crud`）
+- 同 feature 的 service 内: 相对导入（`.crud`）
+- 跨 feature/共享: 绝对导入（`app.shared.models`）
+- 核心模块: 始终绝对导入（`app.core.config`）
+
+### 6. BaseMixin 三层模型
+- BaseMixin（无 table=True）: id, created_at, updated_at
+- 业务 Mixin（无 table=True）: 业务字段
+- 表模型（table=True）: 继承 BaseMixin + 业务 Mixin
+- 请求模型: 继承业务 Mixin 或 SQLModel
+- 响应模型: 继承业务 Mixin + BaseMixin
+- 子模型需覆盖 updated_at 添加 `onupdate=utc_now`
+
+### 7. Redis 缓存规范
+- 键命名: `{{ project_slug }}:模块:功能:参数`
+- 流程: 先读缓存 → 未命中查 DB → 写入缓存
+- 写入: `model_dump_json()`, 读取: `model_validate_json()`
+- 过期时间通过 `.env` 配置（如 `USER_CACHE_EXPIRE_MINUTES=60`）
+
+### 8. 数据库操作
+- 全部使用异步 session + execute（不是 exec）
+- 异步: `Depends(get_db)`
+- 同步（初始化场景）: `get_sync_db()`
+
+### 9. 日志规范
+- Router: 仅 info/warning
+- Service: info（成功）、warning（业务失败）、error（技术异常）
+- Router 禁止 error，禁止重复记录
+
+### 10. 代码质量
+- PEP 8 + 类型注解 + 函数级 docstring
+- 单函数不超过 50 行
+- 环境变量/常量全大写，config 字段全小写
+
+### 11. 开发流程
+- `uv lock` 在宿主机执行
+- 其他所有操作（迁移、测试）在容器内
+- 新增模型后必须更新 `alembic/env.py` 导入
+- 每次迁移前需确认，切忌自行迁移
+- FastAPI 容器热重载，debug 修改后直接看容器日志
+
+### 12. 错误码规范
+- 所有错误返回包含 `error_code`（如 `ERR_NOT_FOUND`）和 `hint`（修复建议）
+- Service 层使用 `AppException(status_code, detail, error_code=ErrorCode.XXX)` 抛出精确错误
+- 全局处理器自动根据状态码推断错误码和附加 hint
+- 成功响应不包含 error_code 和 hint 字段（为 null）

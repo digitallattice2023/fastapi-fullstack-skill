@@ -1,0 +1,64 @@
+# Vue 前端项目脚手架 - Copier 模板配置
+# 运行: copier run ./template <目标目录>
+
+_subdirectory: project
+_min_copier_version: "9.0"
+_templates_suffix: .jinja
+_answers_file: .copier-answers.yml
+
+_exclude:
+  - "__pycache__"
+  - "*.pyc"
+  - ".DS_Store"
+  - "node_modules"
+
+# ============================================================
+# 项目身份
+# ============================================================
+
+project_name:
+  type: str
+  help: "项目名称（用于 package.json name 字段）"
+  default: "myapp"
+
+project_slug:
+  type: str
+  default: "{{ project_name|lower|replace(' ', '_')|replace('-', '_') }}"
+  when: false
+
+project_description:
+  type: str
+  help: "项目简短描述"
+  default: "Vue 3 Frontend Application"
+
+# ============================================================
+# 后端连通
+# ============================================================
+
+has_backend:
+  type: bool
+  help: "是否连接后端 API（生成包含 API 连通性检查的页面）"
+  default: false
+
+backend_api_url:
+  type: str
+  help: "后端 API 地址"
+  default: "http://localhost:8002"
+  when: "has_backend"
+
+# ============================================================
+# 生成后消息
+# ============================================================
+
+_message: |
+  前端项目 "{{ project_name }}" 脚手架生成成功！
+
+  后续步骤：
+    1. cd {{ project_slug }}/frontend
+    2. npm install
+    3. npm run dev
+    4. 访问 http://localhost:5173
+
+  {% if has_backend %}
+  已配置后端 API: {{ backend_api_url }}
+  {% endif %}

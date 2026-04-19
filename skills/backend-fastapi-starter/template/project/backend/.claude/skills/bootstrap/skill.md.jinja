@@ -1,0 +1,52 @@
+---
+name: bootstrap
+description: >
+  One-click project bootstrap: uv lock -> docker compose up -> alembic upgrade ->
+  setup admin (if auth enabled). Triggers when: user wants to start the project, initialize the
+  environment, run the first setup, "bootstrap the project", "start from scratch",
+  "启动项目", "初始化项目", "一键启动".
+---
+
+# 项目一键启动 Skill
+
+一键完成项目初始化和启动流程。
+
+## 工作流
+
+### Step 1: 锁定依赖
+
+```bash
+uv lock
+```
+
+确认 `uv.lock` 生成成功。如失败，提示用户检查 `pyproject.toml`。
+
+### Step 2: 启动 Docker 服务
+
+```bash
+docker compose up -d
+```
+
+### Step 3: 等待服务就绪
+
+轮询 `http://localhost:{{ api_host_port }}/health` 端点，最多等待 60 秒，
+间隔 2 秒。直到返回 `healthy` 或超时。
+
+如超时，执行 `docker compose logs api` 显示错误日志。
+
+### Step 4: 执行数据库迁移
+
+```bash
+docker compose exec api alembic upgrade head
+```
+
+确认迁移成功。
+
+### Step 5: 状态报告
+
+展示给用户:
+- API 地址: `http://localhost:{{ api_host_port }}/`
+- Swagger: `http://localhost:{{ api_host_port }}/docs`
+{% if 'auth' in features %}- Admin 面板: `http://localhost:{{ api_host_port }}/admin`
+- 默认管理员: `{{ admin_email }}` / `{{ admin_password }}`{% endif %}
+- 服务状态（从 /health 解析）

@@ -1,0 +1,141 @@
+<template>
+  <div class="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-blue-50 flex items-center justify-center p-4">
+    <div class="max-w-2xl w-full">
+      <!-- 恭喜卡片 -->
+      <div class="bg-white rounded-2xl shadow-xl p-8 md:p-12 text-center border border-gray-100">
+        <!-- 图标 -->
+        <div class="mx-auto w-20 h-20 bg-gradient-to-br from-emerald-400 to-green-500 rounded-full flex items-center justify-center mb-6 shadow-lg">
+          <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+          </svg>
+        </div>
+
+        <!-- 标题 -->
+        <h1 class="text-3xl md:text-4xl font-bold text-gray-800 mb-2">
+          初始化成功！
+        </h1>
+        <p class="text-gray-500 mb-8">
+          项目已成功初始化，前后端环境运行正常
+        </p>
+
+        <!-- 技术栈 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <!-- 后端 -->
+          {% if has_backend %}
+          <div class="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 text-left">
+            <h2 class="text-lg font-semibold text-gray-700 mb-3 flex items-center gap-2">
+              <span class="w-3 h-3 bg-green-500 rounded-full"></span>
+              后端
+            </h2>
+            <ul class="space-y-2">
+              <li class="flex items-center gap-2 text-gray-600">
+                <span class="w-2 h-2 bg-green-400 rounded-full"></span>
+                FastAPI
+              </li>
+              <li class="flex items-center gap-2 text-gray-600">
+                <span class="w-2 h-2 bg-green-400 rounded-full"></span>
+                PostgreSQL
+              </li>
+              <li class="flex items-center gap-2 text-gray-600">
+                <span class="w-2 h-2 bg-green-400 rounded-full"></span>
+                Redis + Celery
+              </li>
+            </ul>
+            <div class="mt-4 pt-4 border-t border-gray-200">
+              <p class="text-sm text-gray-500">
+                API: <code class="bg-gray-200 px-2 py-1 rounded text-xs">{{ backend_api_url }}</code>
+                <span v-if="apiStatus" class="ml-2 text-green-600 font-medium">已连接</span>
+                <span v-else-if="apiStatus === false" class="ml-2 text-red-500 font-medium">未连接</span>
+                <span v-else class="ml-2 text-gray-400 animate-pulse">检测中...</span>
+              </p>
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- 前端 -->
+          <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 text-left">
+            <h2 class="text-lg font-semibold text-gray-700 mb-3 flex items-center gap-2">
+              <span class="w-3 h-3 bg-blue-500 rounded-full"></span>
+              前端
+            </h2>
+            <ul class="space-y-2">
+              <li class="flex items-center gap-2 text-gray-600">
+                <span class="w-2 h-2 bg-blue-400 rounded-full"></span>
+                Vue 3
+              </li>
+              <li class="flex items-center gap-2 text-gray-600">
+                <span class="w-2 h-2 bg-blue-400 rounded-full"></span>
+                Vite + TypeScript
+              </li>
+              <li class="flex items-center gap-2 text-gray-600">
+                <span class="w-2 h-2 bg-blue-400 rounded-full"></span>
+                Pinia + Tailwind CSS
+              </li>
+            </ul>
+            <div class="mt-4 pt-4 border-t border-gray-200">
+              <p class="text-sm text-gray-500">
+                Frontend: <code class="bg-gray-200 px-2 py-1 rounded text-xs">http://localhost:5173</code>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 快捷链接 -->
+        <div class="flex flex-wrap justify-center gap-4">
+          <a href="/docs" class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors text-sm font-medium">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            API 文档
+          </a>
+          <a href="http://localhost:5173" class="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+            </svg>
+            前端页面
+          </a>
+        </div>
+      </div>
+
+      <!-- 页脚 -->
+      <p class="text-center text-gray-400 text-sm mt-6">
+        Generated by FastAPI Full-Stack Skill
+      </p>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+
+/**
+ * 初始化成功页面组件
+ * 显示前后端技术栈信息，如果配置了后端则进行连通性检测
+ */
+
+// API 连接状态
+const apiStatus = ref<boolean | null>({% if has_backend %}null{% else %}false{% endif %})
+
+// 检测后端 API 连通性
+async function checkApiHealth() {
+{% if has_backend %}
+  try {
+    const response = await fetch('{{ backend_api_url }}/health', {
+      method: 'GET',
+      mode: 'cors',
+    })
+    apiStatus.value = response.ok
+  } catch {
+    apiStatus.value = false
+  }
+{% endif %}
+}
+
+// 页面加载时检测
+onMounted(() => {
+{% if has_backend %}
+  checkApiHealth()
+{% endif %}
+})
+</script>
