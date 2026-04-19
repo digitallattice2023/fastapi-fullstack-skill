@@ -69,19 +69,35 @@ node --version
 
 #### 2.2 后端参数（backend-only 或 fullstack 模式）
 
-**功能模块选择 AskUserQuestion**：
-- header: "功能模块"
+**第一轮功能选择 AskUserQuestion**（基础架构）：
+- header: "基础架构"
 - multiSelect: true
-- 问题: "请选择要启用的后端功能模块"
+- 问题: "请选择要启用的基础架构模块"
 - options:
-  - label: "auth" / description: "JWT 认证（登录/注册/密码重置）"
-  - label: "admin" / description: "SQLAdmin 管理面板（数据库可视化增删改查）"
+  - label: "auth" / description: "JWT 认证（登录/注册/密码重置/管理员初始化）"
   - label: "redis" / description: "缓存层 + Celery 消息代理"
-  - label: "celery" / description: "异步任务队列 + Beat 调度器"
+  - label: "celery" / description: "异步任务队列 + Beat 调度器（自动启用 redis）"
+  - label: "都不需要" / description: "跳过基础架构模块"
+
+**第二轮功能选择 AskUserQuestion**（外部服务）：
+- header: "外部服务"
+- multiSelect: true
+- 问题: "请选择要集成的外部服务"
+- options:
   - label: "storage" / description: "对象存储（Cloudflare R2 / AWS S3）"
   - label: "email" / description: "邮件服务（Resend）"
-  - label: "radar" / description: "HTTP 监控面板（/__radar）"
-- 默认都不勾选
+  - label: "都不需要" / description: "跳过外部服务"
+
+**第三轮功能选择 AskUserQuestion**（辅助工具）：
+- header: "辅助工具"
+- multiSelect: true
+- 问题: "请选择要启用的辅助工具"
+- options:
+  - label: "admin" / description: "SQLAdmin 管理面板（数据库可视化增删改查）"
+  - label: "radar" / description: "HTTP 监控面板（/__radar 性能/路由/健康监控）"
+  - label: "都不需要" / description: "跳过辅助工具"
+
+**模块合并**：将三轮选择的模块合并为最终 `features` 列表（排除"都不需要"选项）。
 
 **依赖自动解析**（Claude 自动处理）：
 - 选了 celery → 自动在 Copier data 中加 redis

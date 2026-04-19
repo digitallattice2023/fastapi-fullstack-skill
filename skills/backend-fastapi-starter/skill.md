@@ -52,25 +52,41 @@ uv --version        # 依赖管理（必需）
 - 如果用户明确指定，则按用户意愿设置
 - 默认值: `true`（国内环境）
 
-**第二轮 AskUserQuestion**（功能模块选择）：
-- header: "功能模块"
+**第二轮 AskUserQuestion**（基础架构）：
+- header: "基础架构"
 - multiSelect: true
-- 问题: "请选择要启用的功能模块"
+- 问题: "请选择要启用的基础架构模块"
 - options:
-  - label: "auth" / description: "JWT 认证（登录/注册/密码重置）"
-  - label: "admin" / description: "SQLAdmin 管理面板（数据库可视化增删改查）"
+  - label: "auth" / description: "JWT 认证（登录/注册/密码重置/管理员初始化）"
   - label: "redis" / description: "缓存层 + Celery 消息代理"
-  - label: "celery" / description: "异步任务队列 + Beat 调度器"
+  - label: "celery" / description: "异步任务队列 + Beat 调度器（自动启用 redis）"
+  - label: "都不需要" / description: "跳过基础架构模块"
+
+**第三轮 AskUserQuestion**（外部服务）：
+- header: "外部服务"
+- multiSelect: true
+- 问题: "请选择要集成的外部服务"
+- options:
   - label: "storage" / description: "对象存储（Cloudflare R2 / AWS S3）"
   - label: "email" / description: "邮件服务（Resend）"
-  - label: "radar" / description: "HTTP 监控面板（/__radar）"
-- 默认都不勾选（用户可以不选任何模块）
+  - label: "都不需要" / description: "跳过外部服务"
+
+**第四轮 AskUserQuestion**（辅助工具）：
+- header: "辅助工具"
+- multiSelect: true
+- 问题: "请选择要启用的辅助工具"
+- options:
+  - label: "admin" / description: "SQLAdmin 管理面板（数据库可视化增删改查）"
+  - label: "radar" / description: "HTTP 监控面板（/__radar 性能/路由/健康监控）"
+  - label: "都不需要" / description: "跳过辅助工具"
+
+**模块合并**：将三轮选择的模块合并为最终 `features` 列表（排除"都不需要"选项）。
 
 **依赖自动解析**（Claude 自动处理，不需要用户知道）：
 - 选了 celery → 自动在 Copier data 中加 redis
 - 选了 email → 提醒用户考虑加 redis（非强制）
 
-**第三轮 AskUserQuestion**（条件触发，仅当用户选了 auth）：
+**第五轮 AskUserQuestion**（条件触发，仅当用户选了 auth）：
 - header: "Auth 配置"
 - multiSelect: false
 - 问题: "请配置初始管理员账户"
