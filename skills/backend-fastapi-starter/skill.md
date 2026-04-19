@@ -57,7 +57,8 @@ uv --version        # 依赖管理（必需）
 - multiSelect: true
 - 问题: "请选择要启用的功能模块"
 - options:
-  - label: "auth" / description: "JWT 认证（登录/注册/密码重置/管理员面板）"
+  - label: "auth" / description: "JWT 认证（登录/注册/密码重置）"
+  - label: "admin" / description: "SQLAdmin 管理面板（数据库可视化增删改查）"
   - label: "redis" / description: "缓存层 + Celery 消息代理"
   - label: "celery" / description: "异步任务队列 + Beat 调度器"
   - label: "storage" / description: "对象存储（Cloudflare R2 / AWS S3）"
