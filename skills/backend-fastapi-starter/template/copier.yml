@@ -13,7 +13,12 @@ _exclude:
   - ".DS_Store"
 
 _skip_if_exists:
-  - ".env"
+  - "env"
+
+# 渲染后将 env / env.example 重命名为 .env / .env.example
+# （npx skills add 会跳过以 . 开头的文件，所以模板使用无点文件名）
+_tasks:
+  - "python -c \"import os; [os.rename(os.path.join('backend', f), os.path.join('backend', '.' + f)) for f in ['env', 'env.example'] if os.path.exists(os.path.join('backend', f))]\""
 
 # ============================================================
 # 项目身份
