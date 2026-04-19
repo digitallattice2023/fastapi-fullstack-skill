@@ -247,6 +247,7 @@ run_copy(
    - fullstack: 展示 `backend/` 和 `frontend/`
 2. 展示 `.copier-answers.yml` 确认参数
 3. 提醒用户修改 `.env` 中的占位符凭据
+4. 告知用户后续开发参考 `backend-dev-guide` skill 中的开发规范
 
 ### Phase 5: 安装 & 启动
 

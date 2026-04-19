@@ -7,9 +7,13 @@
 FastAPI + Vue 模块化全栈脚手架模板仓库
 
 通过 `npx skills add digitallattice2023/fastapi-fullstack-skill` 安装以下 skills：
-- **fullstack-starter** — FastAPI + Vue 全栈统一生成器（推荐，一次生成后端+前端）
-- **backend-fastapi-starter** — FastAPI 模块化后端生成器（Copier 模板，可独立使用）
-- **frontend-vue-starter** — Vue 3 + Vite + TS + Pinia + Tailwind 前端生成器（Copier 模板，可独立使用）
+
+| Skill | 职责 |
+|-------|------|
+| **fullstack-starter** | 全栈统一生成器（推荐入口，一次生成后端+前端） |
+| **backend-fastapi-starter** | 后端项目初始化（Copier 模板生成器，可独立使用） |
+| **frontend-vue-starter** | 前端项目初始化（Copier 模板生成器，可独立使用） |
+| **backend-dev-guide** | 后端开发规范（Feature Manifest 架构、分层约定等开发指导） |
 
 生成后的项目结构：
 ```
@@ -33,18 +37,20 @@ skills/
 ├── fullstack-starter/           # 全栈统一生成器（推荐入口）
 │   ├── skill.md
 │   └── template/                # 占位目录
-├── backend-fastapi-starter/     # 后端 skill（可独立使用）
+├── backend-fastapi-starter/     # 后端项目初始化
 │   ├── skill.md
 │   └── template/
 │       ├── copier.yml
 │       └── project/
 │           └── backend/         # 后端模板文件
-└── frontend-vue-starter/        # 前端 skill（可独立使用）
-    ├── skill.md
-    └── template/
-        ├── copier.yml
-        └── project/
-            └── frontend/        # 前端模板文件
+├── frontend-vue-starter/        # 前端项目初始化
+│   ├── skill.md
+│   └── template/
+│       ├── copier.yml
+│       └── project/
+│           └── frontend/        # 前端模板文件
+└── backend-dev-guide/           # 后端开发规范
+    └── skill.md                 # Feature Manifest、分层约定等开发指导
 ```
 
 ## Skills 开发约定
@@ -53,6 +59,7 @@ skills/
 - 使用 `_subdirectory: project` 作为模板根
 - 模板文件使用 `.jinja` 后缀
 - 条件文件使用 Jinja2 语法：`{% if 'auth' in features %}name{% endif %}.py`
+- 以 `.` 开头的文件（如 `.env`）不能直接出现在模板目录中（npx skills add 会跳过隐藏文件），需使用无点文件名 + `_tasks` 重命名
 
 ## Skill 工作流
 
@@ -65,10 +72,10 @@ skills/
 - Skill 不直接生成文件，所有文件生成由 Copier 负责
 - Skill 负责：环境检查、收集用户参数、调用 Copier、生成后审查
 
-### 后端 skill (backend-fastapi-starter)
-- Feature-based 架构，按业务领域划分代码
-- 支持模块：auth, admin, redis, celery, storage, email, radar
-- Feature Manifest 模式自动发现路由/任务/模型
+### backend-dev-guide
+- 不生成任何文件，纯开发指导
+- 提供 Feature Manifest 模式、分层职责、响应格式、模型构建等约定
+- 在项目初始化后单独使用，辅助新功能开发
 
 ### 前端 skill (frontend-vue-starter)
 - 技术栈固定：Vue 3 + Vite + TypeScript + Pinia + Tailwind CSS
