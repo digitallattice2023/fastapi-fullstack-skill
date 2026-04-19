@@ -109,7 +109,7 @@ node --version
 - JWT 密钥（默认 "dev-secret-key-change-in-production"）
 
 **数据库配置**（使用默认值，不额外询问）：
-- db_name: "{{ project_slug }}"
+- db_name: "postgres"
 - db_port: 5434
 - db_user: "postgres"
 - db_password: "postgres"

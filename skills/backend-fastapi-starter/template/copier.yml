@@ -94,7 +94,7 @@ features:
 db_name:
   type: str
   help: "PostgreSQL 数据库名"
-  default: "{{ project_slug }}"
+  default: "postgres"
 
 db_port:
   type: int
