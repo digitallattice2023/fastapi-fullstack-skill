@@ -66,7 +66,7 @@ from copier import run_copy
 
 run_copy(
     src_path="<skill目录>/template",
-    dst_path="<用户指定的目标目录>",
+    dst_path=".",  # 当前工作目录，模板的 _subdirectory: project 会在当前目录生成 frontend/
     data={
         "project_name": "<用户输入>",
         "project_description": "<用户输入>",
