@@ -178,6 +178,7 @@ run_copy(
         # "redis_host_port": 6381,
     },
     unsafe=True,
+    defaults=True,    # 跳过交互式 prompt（Windows 终端兼容）
 )
 ```
 
@@ -193,8 +194,11 @@ run_copy(
         "backend_api_url": "<值>",    # fullstack 模式自动填入
     },
     unsafe=True,
+    defaults=True,    # 跳过交互式 prompt（Windows 终端兼容）
 )
 ```
+
+**⚠️ Windows 兼容注意**：Copier 在 Windows 下遇到缺失参数时会尝试打开交互式 prompt 导致报错。必须传 `defaults=True` 并使用 `unsafe=True` 确保所有参数由 `data` 字典提供，不触发 fallback 交互。
 
 **部分失败处理**：
 - 如果后端成功但前端失败：告知用户前端生成失败，可单独重新运行前端 Copier

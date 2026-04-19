@@ -99,6 +99,8 @@ uv --version        # 依赖管理（必需）
 
 使用 Copier Python API（预填答案，无需二次交互）：
 
+**⚠️ Windows 兼容注意**：Copier 在 Windows 下遇到缺失参数时会尝试打开交互式 prompt 导致报错。必须传 `defaults=True` 并确保所有条件参数由 `data` 字典提供。
+
 ```python
 from copier import run_copy
 
@@ -118,12 +120,13 @@ run_copy(
         # "secret_key": "<值>",
     },
     unsafe=True,
+    defaults=True,    # 跳过交互式 prompt（Windows 终端兼容）
 )
 ```
 
 如果用户偏好交互式问答，也可使用 CLI：
 ```bash
-copier run "<skill目录>/template" "<目标目录>"
+copier run "<skill目录>/template" "<目标目录>" --defaults
 ```
 
 ### Step 3: 生成后审查
