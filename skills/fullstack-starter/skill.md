@@ -130,20 +130,51 @@ node --version
 
 ### Phase 3: Copier 执行
 
-获取当前 skill 目录和模板路径。**必须使用绝对路径**，`os.getcwd()` 获取用户当前工作目录作为目标。
+**查找模板路径**：AI 不知道 skill 文件在磁盘上的具体位置，需要通过 glob 搜索。从常见安装位置查找：
 
 ```python
-from copier import run_copy
+import glob
 import os
 
-# 当前 skill 所在目录（由 Claude 读取 skill.md 时自行推断绝对路径）
-# 本 skill 位于: G:\Projects\DevProjects\Template\Fastapi\base\skills\fullstack-starter\
-# 因此:
-BASE_SKILLS_DIR = r"<skills目录的绝对路径>"
-backend_template = os.path.join(BASE_SKILLS_DIR, "backend-fastapi-starter", "template")
-frontend_template = os.path.join(BASE_SKILLS_DIR, "frontend-vue-starter", "template")
-# 目标目录：用户当前工作目录
-target_dir = os.getcwd()
+# 按优先级搜索技能安装位置
+search_dirs = [
+    os.path.expanduser("~/.claude/skills"),           # 用户级安装
+    os.path.join(os.getcwd(), ".claude", "skills"),   # 项目级安装
+    os.path.join(os.getcwd(), "skills"),              # 根目录 skills/
+    os.getcwd(),                                       # 当前目录
+]
+
+backend_template = None
+frontend_template = None
+
+for sd in search_dirs:
+    if not os.path.exists(sd):
+        continue
+    be = glob.glob(os.path.join(sd, "backend-fastapi-starter", "template"))
+    fe = glob.glob(os.path.join(sd, "frontend-vue-starter", "template"))
+    if be:
+        backend_template = os.path.abspath(be[0])
+    if fe:
+        frontend_template = os.path.abspath(fe[0])
+    if backend_template and frontend_template:
+        break
+
+if not backend_template or not frontend_template:
+    raise FileNotFoundError(f"未找到技能模板。搜索路径: {search_dirs}")
+```
+
+**目标目录**：使用用户执行 skill 时所在的当前工作目录。`dst_path` 指向该目录，模板的 `_subdirectory: project` 会直接在当前目录生成 `backend/` 和 `frontend/`。
+
+```python
+target_dir = os.getcwd()  # 用户当前工作目录
+```
+
+**⚠️ 生成后验证**：Copier 执行后必须检查关键文件是否存在：
+```python
+# 验证后端 .env 文件（Windows 下偶发缺失）
+import pathlib
+env_file = pathlib.Path(target_dir) / "backend" / ".env"
+assert env_file.exists(), f".env 文件未生成！请检查模板路径: {backend_template}"
 ```
 
 **后端 Copier 调用**（backend-only 或 fullstack）：

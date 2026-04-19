@@ -61,11 +61,25 @@ npm --version
 
 使用 Copier Python API（预填答案，无需二次交互）：
 
+**⚠️ Windows 兼容注意**：Copier 在 Windows 下遇到缺失参数时会尝试打开交互式 prompt 导致报错。必须传 `defaults=True`。
+
+**⚠️ 模板路径查找**：AI 需要通过 glob 搜索找到模板路径：
+```python
+import glob, os
+search_dirs = [os.path.expanduser("~/.claude/skills"), os.path.join(os.getcwd(), ".claude", "skills"), os.path.join(os.getcwd(), "skills"), os.getcwd()]
+for sd in search_dirs:
+    if os.path.exists(sd):
+        m = glob.glob(os.path.join(sd, "frontend-vue-starter", "template"))
+        if m:
+            src_path = os.path.abspath(m[0])
+            break
+```
+
 ```python
 from copier import run_copy
 
 run_copy(
-    src_path="<skill目录>/template",
+    src_path=src_path,
     dst_path=".",  # 当前工作目录，模板的 _subdirectory: project 会在当前目录生成 frontend/
     data={
         "project_name": "<用户输入>",
