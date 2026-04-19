@@ -39,14 +39,12 @@ uv --version        # 依赖管理（必需）
 **⚠️ 必须按顺序调用 AskUserQuestion 工具收集以下信息，不得跳过或硬编码默认值。**
 
 **第一轮 AskUserQuestion**（项目身份）：
-- header: "项目信息"
+- header: "项目名称"
 - multiSelect: false
-- 每个字段用单独的问题或合并为一个多字段问题：
-  - 项目名称（默认 "myapp"）
-  - 项目描述（默认 "FastAPI 后端应用"）
-  - 作者名称（默认 "Dev Team"）
-  - 作者邮箱（默认 "dev@example.com"）
-  - 目标目录（默认当前目录）
+- 问题: "请输入后端项目名称"
+- options:
+  - label: "自定义名称" / description: "输入项目名称，其余参数使用默认值（描述=FastAPI 后端应用, 作者=Dev Team, 邮箱=dev@example.com）"
+- 用户通过 Other 选项输入自定义名称，不填则使用默认值 "myapp"
 
 **国内镜像源确认**（Claude 自动判断，不需要用户知道）：
 - 检测用户网络环境（尝试 ping docker.io 或 pypi.org）
